@@ -1,0 +1,247 @@
+﻿@{
+    ViewData["Title"] = "Home Page";
+}
+<script src="~/custom/jsx/jquery-3.2.1.min.js"></script>
+<script src="~/custom/jsx/popper.min.js"
+        crossorigin="anonymous"></script>
+<script src="~/custom/jsx/bootstrap-4.0.0.min.js"
+        crossorigin="anonymous"></script>
+<script src="~/custom/jsx/Chart-2.8.0.min.js"></script>
+@*<script src="~/custom/jsx/bootstrap.bundle.min.js"></script>*@
+<script src="~/custom/jsx/chartjs-plugin-zoom-0.7.4.js"></script>
+<link rel="stylesheet" href="~/custom/cssx/bootstrap-4.0.0.min.css" crossorigin="anonymous">
+<link href="~/custom/cssx/fontawesome.min.css" rel="stylesheet">
+<link href="~/custom/cssx/Style.css" rel="stylesheet" />
+<style type="text/css">
+    .head {
+        text-transform: uppercase;
+        text-align: center;
+    }
+
+    .solidBorder {
+        border-style: solid;
+    }
+
+    h5 {
+        font-weight: bolder;
+        text-align: center;
+        width: 85%;
+        color: #eee;
+        text-transform: uppercase;
+        overflow-wrap: break-word;
+    }
+
+    .window {
+        display: none;
+    }
+
+        .window:target {
+            display: block;
+        }
+
+    .imglogo {
+        width: 15%;
+        height: 35px;
+    }
+
+    .img-fluid {
+        height: inherit;
+    }
+
+    .init {
+        display: none;
+    }
+
+    .chartWrapper {
+        position: relative;
+        border: 1px solid #eee;
+    }
+
+        .chartWrapper > canvas {
+            position: absolute;
+            left: 0;
+            top: 0;
+            pointer-events: none;
+        }
+
+    .chartAreaWrapper {
+        overflow-x: scroll;
+    }
+</style>
+
+<script type="text/javascript">
+    var equipDataMain = [];
+    var labelsList = [];
+    var chart = null;
+    $(function () {
+        $("#fromDate").val("2020-01-26T13:00");
+        $("#toDate").val("2020-01-28T13:00");
+        Date.prototype.toDateInputValue = (function () {
+            var local = new Date(this);
+            local.setMinutes(this.getMinutes() - this.getTimezoneOffset());
+            return local.toJSON().slice(0, 16);
+        });
+
+    })
+    function GetData() {
+        var idPLC = 2282;
+        var frmDt = $("#fromDate").val();
+        var toDt = $("#toDate").val();
+        jQuery.ajax({
+            type: "POST",
+            url: 'Home/GetPLCData',
+            data: JSON.stringify({ 'TAGID': idPLC, 'FromDate': frmDt, 'ToDate': toDt }),
+            contentType: "application/json; charset=utf-8",
+            datatype: "json",
+            success: OnSuccess,
+            error: function (response) {
+                alert('Error in loading data');
+            }
+        }).done(function (response) {
+            //$("#btnScatter").hide();
+            if (response.length == 0) { alert('No data found'); return; }
+            //$("#btnScatter").show();
+            loadChart();
+            //DoughnutChartHealth();
+
+        });
+    }
+    function OnSuccess(response) {
+        var sortedActivities = response.slice().sort((a, b) => b.date - a.date)
+        $(sortedActivities).each(function (index, data) {
+            var nowDate = new Date(data.readtime);
+            var date = nowDate.toDateInputValue().replace('T', ' ');
+
+            equipDataMain.push({ x: date, y: data.value });
+            labelsList.push(date);
+        });
+    }
+    function loadChart() {
+        if (chart != null) {
+            chart.destroy();
+        }
+
+        var chartColors = {
+            color1: 'rgba(77, 166, 255, 0.5)',
+            color2: 'rgba(218, 165, 32, 0.5)',
+            color3: 'rgba(175, 0, 42, 0.5)'
+        };
+
+        var chartData = {
+            labels: labelsList,
+            datasets: [
+                {
+                    fill: false,
+                    backgroundColor: 'rgba(77, 166, 255, 0.5)',
+                    borderColor: 'rgba(77, 166, 255, 0.5)',
+                    borderWidth: 1,
+                    data: equipDataMain,
+                    label: 'Load',
+                    pointRadius: 5,
+                    pointStyle: 'circle',
+                    pointHoverRadius: 5
+                }
+            ]
+        };
+
+        var chartOptions = {
+            maintainAspectRatio: false,
+            responsive: true,
+            hover: {
+                mode: 'index',
+                intersect: false
+            },
+            scales: {
+                yAxes: [{
+                    id: "flag",
+                    ticks: {
+                        beginAtZero: 0,
+                    },
+                    scaleLabel: {
+                        display: true,
+                        labelString: 'Flag'
+                    }
+                }],
+                xAxes: [{
+                    id: "datetime",
+                    ticks: {
+                        beginAtZero: true
+                    },
+                    scaleLabel: {
+                        display: true,
+                        labelString: 'Datetime'
+                    },
+                }]
+            },
+            plugins: {
+                zoom: {
+                    pan: {
+                        enabled: true,
+                        mode: 'x'
+                    },
+                    zoom: {
+                        enabled: true,
+                        mode: 'x'
+                    }
+                }
+            },
+            onClick: function (e) {
+                var activePoints = chart.getElementsAtEvent(e);
+                if (activePoints.length > 0) {
+                    flag = this.data.datasets[activePoints[0]._datasetIndex].data[activePoints[0]._index].y;
+                    selectedDate = this.data.datasets[activePoints[0]._datasetIndex].data[activePoints[0]._index].x;
+
+                    getSelectedPointData(true);
+                }
+            },
+            legend: {
+                labels: {
+                    usePointStyle: true
+                }
+            }
+        }
+
+        var ctx = document.getElementById("mychart").getContext("2d");
+        chart = new Chart(ctx,
+            {
+                type: 'line',
+                data: chartData,
+                options: chartOptions,
+            }
+
+        );
+
+    }
+
+
+</script>
+<div class="row">
+    <div class="col-lg-93">
+        <input type="datetime-local" id="fromDate"
+               name="fromDate"
+               class="form-control form-control-sm">
+    </div>
+    <div class="col-lg-93">
+
+        <input type="datetime-local" id="toDate"
+               name="toDate"
+               class="form-control form-control-sm">
+    </div>
+    <div class="col-lg-93">
+
+        <input type="button" value="Get Data" onclick="GetData();" />
+    </div>
+</div>
+<div class="row">
+    <div class="col-lg-9">
+        <div id="line-legend" style="text-align:center"></div>
+        <div class="chartWrapper">
+            <div class="chartAreaWrapper">
+                <div class="chartAreaWrapper2">
+                    <canvas id="mychart" height="300" width="600"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</div>
